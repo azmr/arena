@@ -35,7 +35,7 @@ typedef struct memory_debug_info
 	memory_index Size; \
 	memory_index Used; \
 	union { \
-		u8 *Bytes; \
+		unsigned char *Bytes; \
 		void *Base; \
 		extra_member \
 	}
@@ -52,7 +52,7 @@ union type ## _arena { \
 } type ## _arena
 
 /// Should already be cleared to 0 in initial allocation of memory
-internal inline void
+static inline void
 InitArena(memory_arena *Arena, void *Base, memory_index Size)
 {
 	Arena->Size   = Size;
@@ -60,7 +60,7 @@ InitArena(memory_arena *Arena, void *Base, memory_index Size)
 	Arena->Used   = 0;
 }
 
-internal inline memory_arena
+static inline memory_arena
 CreateArena(void *Base, memory_index Size)
 {
 	memory_arena Result;
@@ -72,12 +72,12 @@ CreateArena(void *Base, memory_index Size)
 
 #define ArenaCount(Arena, type) ((Arena).Used / sizeof(type))
 
-internal inline memory_index Len_(memory_arena Arena, memory_index ItemSize)
+static inline memory_index Len_(memory_arena Arena, memory_index ItemSize)
 {
 	Assert((Arena.Used % ItemSize) == 0);
 	return Arena.Used / ItemSize;
 }
-internal inline memory_index Cap_(memory_arena Arena, memory_index ItemSize)
+static inline memory_index Cap_(memory_arena Arena, memory_index ItemSize)
 {
 	Assert((Arena.Size % ItemSize) == 0);
 	return Arena.Size / ItemSize;
@@ -113,7 +113,7 @@ internal inline memory_index Cap_(memory_arena Arena, memory_index ItemSize)
 #define PushArr(arena, arr, n) (SRAssert_ArenaPush(arena, el), ArenaAddressToIndex(arena, AppendArr(arena, arr, n)))
 #define PushArray(arena, arr)  (SRAssert_ArenaPush(arena, el), ArenaAddressToIndex(arena, AppendArray(arena, arr)))
 
-internal inline void *
+static inline void *
 GrowSize_(memory_arena *Arena, memory_index Size
 			MEMORY_DEBUG_INFO_ARGS)
 {
@@ -124,7 +124,7 @@ GrowSize_(memory_arena *Arena, memory_index Size
 	return Result;
 }
 #if 0
-internal inline memory_index
+static inline memory_index
 GrowSizeIndex_(memory_arena *Arena, memory_index Size, memory_index ElSize, 
 	MEMORY_DEBUG_INFO_ARGS)
 {
@@ -140,7 +140,7 @@ return Result;
 #if     ARENA_NO_BOUNDS_CHECK
 #define ArenaBoundsCheck(i, length) (i)
 #endif//ARENA_NO_BOUNDS_CHECK
-internal inline memory_index
+static inline memory_index
 ArenaBoundsCheck(memory_index i, memory_index Length)
 {
 	Assert(i > 0);
@@ -150,7 +150,7 @@ ArenaBoundsCheck(memory_index i, memory_index Length)
 
 #define PullStruct(arena, iEl, type) (type *)PullStruct_(*(memory_arena*)&(arena), (iEl), sizeof(type))
 #define Pull(arena, iEl) ((arena).Items[ArenaBoundsCheck(iEl, Len(arena))])
-internal inline void *
+static inline void *
 PullStruct_(memory_arena Arena, memory_index ElNum, memory_index ElSize)
 {
 	memory_index Offset = ElNum * ElSize;
@@ -164,7 +164,7 @@ PullStruct_(memory_arena Arena, memory_index ElNum, memory_index ElSize)
 #define PopDiscard(arena) ((arena)->Used -= sizeof(*(arena)->Items))
 #define Pop(arena) (PopDiscard(arena), Pull(*(arena), Len(*(arena))))
 // very much not threadsafe, should be immediately dereferenced to a type
-internal inline void *
+static inline void *
 PopStruct_(memory_arena *Arena, memory_index ElSize)
 {
 	Assert(Arena->Used >= ElSize);
@@ -173,7 +173,7 @@ PopStruct_(memory_arena *Arena, memory_index ElSize)
 	return Result;
 }
 
-internal inline memory_arena
+static inline memory_arena
 ArenaMalloc(memory_index Size)
 {
 	memory_arena Result;
@@ -183,7 +183,7 @@ ArenaMalloc(memory_index Size)
 	return Result;
 }
 
-internal inline memory_arena
+static inline memory_arena
 ArenaCalloc(memory_index Size)
 {
 	memory_arena Result;
@@ -193,13 +193,13 @@ ArenaCalloc(memory_index Size)
 	return Result;
 }
 
-/// returns success. If fails, Arena is unchanged
-internal inline b32
+/// returns 1 for success. If fails, Arena is unchanged
+static inline int
 ArenaRealloc(memory_arena *Arena, memory_index Size)
 {
 	void *NewBase = realloc(Arena->Base, Size);
 	Assert(NewBase);
-	b32 Result = NewBase != 0;
+	int Result = NewBase != 0;
 	if(Result)
 	{
 		Arena->Base = NewBase;
@@ -219,7 +219,7 @@ ArenaRealloc(memory_arena *Arena, memory_index Size)
 /* SubArena(memory_arena *Result, memory_arena *Arena, memory_index Size, memory_index Alignment = 16) */
 /* ZeroSize(memory_index Size, void *Ptr) */
 
-internal inline void
+static inline void
 CopyArenaContents(memory_arena Src, memory_arena *Dst)
 {
 	Assert(Dst->Size >= Src.Used);

@@ -1,4 +1,12 @@
 #ifndef ARENA_H
+
+// TODO:
+// - Compare with version that stores len and computes size (also need to store itemsize)
+// - Extend to multiple dimensions, trees, hash tables, ...?
+// - Try with header in contiguous memory, addressable like normal array
+
+#include "foreach.h"
+
 #ifndef ARENA_COPY
 #define ARENA_COPY(dst, src, n) memcpy(dst, src, n)
 #endif//ARENA_COPY
@@ -50,6 +58,7 @@ union type ## _arena { \
 	memory_arena Arena; \
 	struct{ MEMORY_ARENA_MEMBERS(type *Items;); }; \
 } type ## _arena
+
 
 /// Should already be cleared to 0 in initial allocation of memory
 static inline void
@@ -109,9 +118,9 @@ static inline memory_index Cap_(memory_arena Arena, memory_index ItemSize)
 // for typed memory arenas
 #define PushN(arena, n) ArenaAddressToIndex(arena, GrowSize(arena, (n)*sizeof(*(arena)->Items)))
 #define Push1(arena)    ArenaAddressToIndex(arena, GrowSize(arena,     sizeof(*(arena)->Items)))
-#define Push(arena, el)        (SRAssert_ArenaPush(arena, el), (arena)->Items[Push1(arena)] = (el))
-#define PushArr(arena, arr, n) (SRAssert_ArenaPush(arena, el), ArenaAddressToIndex(arena, AppendArr(arena, arr, n)))
-#define PushArray(arena, arr)  (SRAssert_ArenaPush(arena, el), ArenaAddressToIndex(arena, AppendArray(arena, arr)))
+#define Push(arena, el)        ((arena)->Items[Push1(arena)] = (el))
+#define PushArr(arena, arr, n) ArenaAddressToIndex(arena, AppendArr(arena, arr, n))
+#define PushArray(arena, arr)  ArenaAddressToIndex(arena, AppendArray(arena,  arr))
 
 static inline void *
 GrowSize_(memory_arena *Arena, memory_index Size
@@ -136,20 +145,59 @@ return Result;
 }
 #endif
 
-// needed to prevent multiple evaluation of index (e.g. if ++i)
-#if     ARENA_NO_BOUNDS_CHECK
-#define ArenaBoundsCheck(i, length) (i)
-#endif//ARENA_NO_BOUNDS_CHECK
+
+// TODO: InsertArray; InsertArena; RemoveN;
+#define Insert(arena, i, el) (SRAssert_MEM_ARENA(arena), (arena)->Items[ArenaSpaceForInsert((memory_arena *)(arena), i, sizeof(*(arena)->Items))] = (el))
+#define Remove(arena, i)     (SRAssert_MEM_ARENA(arena), ArenaRemove((memory_arena *)(arena), i, sizeof(*(arena)->Items)))
+
 static inline memory_index
-ArenaBoundsCheck(memory_index i, memory_index Length)
+ArenaSpaceForInsert(memory_arena *Arena, memory_index i, memory_index ElSize)
 {
-	Assert(i > 0);
-	Assert(i < Length);
+	GrowSize_(Arena, ElSize MEMORY_DEBUG_INFO);
+	unsigned char * Start = Arena->Bytes + (i+1) * ElSize;
+	// Could use memmove
+	for(unsigned char *Ptr = Arena->Bytes + Arena->Used - 1;
+			Ptr >= Start; --Ptr)
+	{
+		*Ptr = *(Ptr - ElSize);
+	}
 	return i;
 }
 
+static inline memory_index
+ArenaRemove(memory_arena *Arena, memory_index i, memory_index ElSize)
+{
+	Assert(Arena->Used >= ElSize);
+	unsigned char * Start = Arena->Bytes + (i) * ElSize;
+	// Could use memmove
+	for(unsigned char *Ptr = Start;
+			Ptr < Arena->Bytes + Arena->Used - ElSize;
+			++Ptr)
+	{
+		*Ptr = *(Ptr + ElSize);
+	}
+	Arena->Used -= ElSize;
+	return i;
+}
+
+
+// needed to prevent multiple evaluation of index (e.g. if ++i)
+static inline memory_index
+ArenaBoundsCheck(memory_index i, memory_index Length)
+{
+	Assert(i >= 0);
+	Assert(i < Length);
+	return i;
+}
+#if     ARENA_NO_BOUNDS_CHECK
+#define ArenaBoundsCheck(i, length) (i)
+#endif//ARENA_NO_BOUNDS_CHECK
+
 #define PullStruct(arena, iEl, type) (type *)PullStruct_(*(memory_arena*)&(arena), (iEl), sizeof(type))
-#define Pull(arena, iEl) ((arena).Items[ArenaBoundsCheck(iEl, Len(arena))])
+#define Pull_(arena, iEl, len) ((arena).Items[ArenaBoundsCheck(iEl, len)])
+#define Pull(arena, iEl) Pull_(arena, iEl, Len(arena))
+#define Pull2D(arena, x, y, w) Pull(arena, (y)*(w) + (x))
+#define Pull3D(arena, x, y, z, w, h) Pull(arena, (z)*(h)*(w) + (y)*(w) + (x))
 static inline void *
 PullStruct_(memory_arena Arena, memory_index ElNum, memory_index ElSize)
 {
@@ -162,7 +210,7 @@ PullStruct_(memory_arena Arena, memory_index ElNum, memory_index ElSize)
 
 #define RemoveStruct(Arena, type) *(type *)PopStruct_((memory_arena*)(Arena), sizeof(type))
 #define PopDiscard(arena) ((arena)->Used -= sizeof(*(arena)->Items))
-#define Pop(arena) (PopDiscard(arena), Pull(*(arena), Len(*(arena))))
+#define Pop(arena) (PopDiscard(arena), Pull_(*(arena), Len(*(arena)), Len(*(arena))+1))
 // very much not threadsafe, should be immediately dereferenced to a type
 static inline void *
 PopStruct_(memory_arena *Arena, memory_index ElSize)

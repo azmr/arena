@@ -24,19 +24,24 @@
 // if it's inserted one before current point, decrement the index
 // the index for Value is i_Value
 // (or could return to defining name manually)
-#define foreach(valtype, val, arena)         \
-	FOR_EACH_ONCE(CAT(i,val) = 0)            \
+#define foreach(valtype, val, arena)  foreachoff(0, valtype, val, arena)
+#define foreach1(valtype, val, arena) foreachoff(1, valtype, val, arena)
+#define foreachoff(off, valtype, val, arena) \
+	FOR_EACH_ONCE(CAT(i,val) = off)            \
                                              \
-		for(valtype val = (arena).Items[0];  \
+		for(valtype val = (arena).Items[CAT(i,val)];  \
 			CAT(i,val) < Len(arena);         \
 			val = (arena).Items[++CAT(i,val)])
 
 // index and value (not pointer), length fixed
-#define foreachf(valtype, val, arena)               \
-	FOR_EACH_ONCE(CAT(i,val) = 0,                   \
+// TODO: cache arena to minimise indirection
+#define foreachf(valtype, val, arena)  foreachfoff(0, valtype, val, arena)
+#define foreachf1(valtype, val, arena) foreachfoff(1, valtype, val, arena)
+#define foreachfoff(off, valtype, val, arena)               \
+	FOR_EACH_ONCE(CAT(i,val) = off,                   \
 			CAT(foreach_len,__LINE__) = (FOR_EACH_INDEX_TYPE)Len(arena))  \
                                                     \
-		for(valtype val = (arena).Items[0];         \
+		for(valtype val = (arena).Items[CAT(i,val)];         \
 			CAT(i,val) < CAT(foreach_len,__LINE__); \
 			val = (arena).Items[++CAT(i,val)])
 
